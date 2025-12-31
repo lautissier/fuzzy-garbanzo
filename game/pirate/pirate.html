@@ -1,0 +1,264 @@
+<!--
+The Pirate Game web implementation.
+Original code and design by GitHub Copilot (copilot.github.com), assisted by lautissier.
+Published for non-profit hobby use.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>The Pirate Game (7x7 Grid)</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+    }
+    .flex-container {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+    }
+    #grid {
+      border-collapse: collapse;
+      margin-bottom: 20px;
+      margin-right: 40px;
+    }
+    #grid th, #grid td {
+      border: 1px solid #444;
+      width: 40px;
+      height: 40px;
+      text-align: center;
+      font-size: 20px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #grid th {
+      background: #efefef;
+      cursor: default;
+    }
+    .marked {
+      background-color: gold;
+      color: #222;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    #markBtn:disabled {
+      background: #bbb;
+      cursor: not-allowed;
+    }
+    .player-panel {
+      min-width: 260px;
+      max-width: 330px;
+    }
+    .player-panel h2 {
+      margin-top: 0;
+    }
+    #playerList {
+      list-style: none;
+      padding: 0;
+    }
+    #playerList li {
+      margin: 4px 0;
+      padding: 6px 12px;
+      border-radius: 4px;
+      transition: background 0.2s;
+      font-size: 18px;
+      background: #f9f9f9;
+      border: 1px solid #ddd;
+      cursor: pointer;
+    }
+    #playerList li.selected {
+      background-color: #4d97ff;
+      color: #fff;
+      border-color: #0071e3;
+      font-weight: bold;
+    }
+    #addPlayerBtn, #highlightPlayerBtn {
+      margin-left: 8px;
+      margin-right: 8px;
+      padding: 6px 12px;
+      font-size: 14px;
+    }
+    #newPlayer {
+      padding: 6px;
+      font-size: 16px;
+      width: 135px;
+      box-sizing: border-box;
+    }
+    @media (max-width: 900px) {
+      .flex-container { flex-direction: column; }
+      .player-panel { margin-top: 30px; }
+    }
+  </style>
+</head>
+<body>
+  <h1>The Pirate Game (7x7 Grid)</h1>
+  <div class="flex-container">
+    <div>
+      <table id="grid"></table>
+      <button id="markBtn">Mark a random grid cell</button>
+    </div>
+    <div class="player-panel">
+      <h2>Players</h2>
+      <div style="margin-bottom: 10px;">
+        <input type="text" id="newPlayer" placeholder="Enter player name" maxlength="32" autocomplete="off">
+        <button id="addPlayerBtn">Add Player</button>
+      </div>
+      <ul id="playerList"></ul>
+      <button id="highlightPlayerBtn">Highlight a Random Player</button>
+    </div>
+  </div>
+  <script>
+    // --- Pirate game grid setup
+    const cols = ["A", "B", "C", "D", "E", "F", "G"];
+    const rows = 7;
+
+    const table = document.getElementById('grid');
+    let thead = document.createElement('thead');
+    let headerRow = document.createElement('tr');
+    headerRow.appendChild(document.createElement('th')); // top left empty
+
+    cols.forEach(c => {
+      let th = document.createElement('th');
+      th.textContent = c;
+      headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    let tbody = document.createElement('tbody');
+    for (let r = 1; r <= rows; r++) {
+      let tr = document.createElement('tr');
+      let rowLabel = document.createElement('th');
+      rowLabel.textContent = r;
+      tr.appendChild(rowLabel);
+      for (let c = 0; c < cols.length; c++) {
+        let td = document.createElement('td');
+        td.setAttribute('data-coord', `${cols[c]}${r}`);
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+
+    // Unmarked grid logic
+    let unmarked = [];
+    for (let r = 1; r <= rows; r++) {
+      for (let c = 0; c < cols.length; c++) {
+        unmarked.push(`${cols[c]}${r}`);
+      }
+    }
+
+    const markBtn = document.getElementById('markBtn');
+    markBtn.addEventListener('click', () => {
+      if (unmarked.length === 0) return;
+      const idx = Math.floor(Math.random() * unmarked.length);
+      const coord = unmarked[idx];
+      markCell(coord);
+    });
+
+    function markCell(coord) {
+      const cell = document.querySelector(`td[data-coord="${coord}"]`);
+      if (!cell || cell.classList.contains('marked')) return;
+      cell.classList.add('marked');
+      cell.textContent = "✪";
+      const i = unmarked.indexOf(coord);
+      if (i !== -1) unmarked.splice(i, 1);
+      if (unmarked.length === 0) {
+        markBtn.disabled = true;
+      }
+    }
+
+    function unmarkCell(coord) {
+      const cell = document.querySelector(`td[data-coord="${coord}"]`);
+      if (!cell || !cell.classList.contains('marked')) return;
+      cell.classList.remove('marked');
+      cell.textContent = "";
+      if (!unmarked.includes(coord)) unmarked.push(coord);
+      markBtn.disabled = false;
+    }
+
+    table.addEventListener('click', (event) => {
+      const cell = event.target;
+      if (cell.tagName.toLowerCase() !== 'td') return;
+      const coord = cell.getAttribute('data-coord');
+      if (cell.classList.contains('marked')) {
+        unmarkCell(coord);
+      } else {
+        markCell(coord);
+      }
+    });
+
+    // --- Player list logic
+
+    const playerListElem = document.getElementById('playerList');
+    const newPlayerInput = document.getElementById('newPlayer');
+    const addPlayerBtn = document.getElementById('addPlayerBtn');
+    const highlightPlayerBtn = document.getElementById('highlightPlayerBtn');
+    let playerNames = [];
+
+    // Add player handler
+    addPlayerBtn.onclick = function() {
+      let name = newPlayerInput.value.trim();
+      if (name === "") {
+        newPlayerInput.focus();
+        return;
+      }
+      // Prevent duplicate (case insensitive)
+      if (playerNames.some(p => p.toLowerCase() === name.toLowerCase())) {
+        alert("This player name is already in the list.");
+        newPlayerInput.value = "";
+        newPlayerInput.focus();
+        return;
+      }
+      playerNames.push(name);
+      addPlayerToList(name);
+      newPlayerInput.value = "";
+      newPlayerInput.focus();
+    };
+
+    // Support enter to add player
+    newPlayerInput.addEventListener('keydown', function(e){
+      if (e.key === 'Enter') addPlayerBtn.click();
+    });
+
+    function addPlayerToList(name) {
+      const li = document.createElement('li');
+      li.textContent = name;
+      playerListElem.appendChild(li);
+
+      // Allow manual highlight on click
+      li.onclick = function() {
+        toggleSelection(li);
+      }
+    }
+
+    // Only one selected at a time
+    function toggleSelection(li) {
+      const current = playerListElem.querySelector('.selected');
+      if (current === li) {
+        current.classList.remove('selected');
+        return;
+      }
+      if (current) current.classList.remove('selected');
+      li.classList.add('selected');
+    }
+
+    // Highlight random player / clear selection
+    highlightPlayerBtn.onclick = function() {
+      const listItems = Array.from(playerListElem.querySelectorAll('li'));
+      if (listItems.length === 0) return;
+      const selected = playerListElem.querySelector('.selected');
+      if (selected) {
+        // Clear highlight
+        selected.classList.remove('selected');
+      } else {
+        // Highlight one random
+        const idx = Math.floor(Math.random() * listItems.length);
+        listItems[idx].classList.add('selected');
+      }
+    };
+  </script>
+</body>
+</html>
+
